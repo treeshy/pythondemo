@@ -1,2 +1,2 @@
 # pythondemo
-python practice
+hello this is my python practice ^_^
