@@ -3,96 +3,117 @@ import urllib2
 import urllib
 import cookielib
 import re
-
-baseUrl='http://tieba.baidu.com/p/3138733512'
-
-class tools:
-    replaceImg=re.compile('<img.*?>')
-    replaceAddr=re.compile('<a.*?>|</a>')
-    replaceLine=re.compile('<tr>|<div>|</div>|</p>')
-    replaceTD=re.compile('<td>')
-    replacePara=re.compile('<p.*?>')
-    replaceBR=re.compile('<br><br>|<br>')
-    repalceExtraTag=re.compile('<.*?>')
-    def replace(self,txt):
-        txt=re.sub(self.replaceImg,"",txt)
-        txt=re.sub(self.replaceAddr,"",txt)
-        txt=re.sub(self.replaceLine,'\r\n',txt)
-        txt=re.sub(self.replaceTD,'\t',txt)
-        txt=re.sub(self.replacePara,'\r\n  ',txt)
-        txt=re.sub(self.replaceBR,'\r\n',txt)
-        txt=re.sub(self.repalceExtraTag,'',txt)
-        return txt.strip()
-    
-class bdtb(object):
-    def __init__(self,baseUrl,see_lz):
-        self.baseUrl=baseUrl
-        self.see_lz='?see_lz='+str(see_lz)
-        self.tool=tools()
-        self.fw=open('baidutieba.txt','wb')
-        self.floor=1
+ 
+class jwc(object):
+     
+    def __init__(self,zjh,mm,type):
+        self.loginUrl='http://202.115.47.141/loginAction.do'
+        self.evaUrl='http://202.115.47.141/jxpgXsAction.do?oper=listWj'
+        self.postdata=urllib.urlencode({
+                       'zjh':zjh,
+                       'mm':mm})
+        self.cookies=cookielib.CookieJar()
+        self.opener=urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookies))
+        self.type=type
+        self.fw=open('jwc.txt','wb')
+         
+    def getScore(self):
+        totalElectiveCredit=0.0
+        totalElectiveScore=0.0
+        totalRequiredCredit=0.0
+        totalRequireScore=0.0
+        scoreUrl='http://202.115.47.141/gradeLnAllAction.do?type=ln&oper=qbinfo&lnxndm=2015-2016%D1%A7%C4%EA%B4%BA(%C1%BD%D1%A7%C6%DA)'
+        response=self.opener.open(scoreUrl)
+        pattern=re.compile('class="odd.*?/td>.*?/td>.*?center">(.*?)</td'+
+                           '.*?/td>.*?center">(.*?)</td'+
+                           '.*?center">(.*?)</td'+
+                           '.*?p align="center">(.*?)&nbsp', re.S)
+        items=re.findall(pattern, response.read())
         
-    def getPage(self,pageNum):
-        try:
-            url=self.baseUrl+self.see_lz+'&pn='+str(pageNum)
-            request=urllib2.Request(url)
-            response=urllib2.urlopen(request)
-            return response.read()
-        except urllib2.URLError,e:
-            if hasattr(e, 'reason'):
-                print '连接百度贴吧出粗，错误原因',e.reason
-                return None
-    
-    def getTitle(self,page):
-        pattern=re.compile('<h3.*?title=(.*?) style', re.S)
-        result=re.search(pattern, page)
-        if result:
-            self.fw.write(result.group(1).strip()+'\r\n')
-            return result.group(1).strip()
-        else:
-            return None
-        
-    def getPageNum(self,page):
-        pattern=re.compile('<li class="l_reply_num.*?</span>.*?<span.*?>(.*?)</span>', re.S)
-        result=re.search(pattern, page)
-        if result:
-            self.fw.write(result.group(1).strip()+'\r\n')
-            return result.group(1).strip()
-        else:
-            return None
-    
-    def getContent(self,page):
-        pattern=re.compile('id="post_content_.*?>(.*?)</div', re.S)
-        items=re.findall(pattern, page)
         for item in items:
-            self.fw.write(str(self.floor))
-            self.fw.write("楼------------------------------------------------------------------------------------------------------------------------------------\r\n")
-            self.fw.write(self.tool.replace(item)+'\r\n')
-            self.floor+=1
-            
-    def start(self):
-        basePage=self.getPage(1)
-        pageNum=self.getPageNum(basePage)
-        title=self.getTitle(basePage)
-        if pageNum==None:
-            print '地址失效，请重试。'
-            return
-        try:
-            print '该贴子共有%s页'%pageNum
-            for i in range(1,int(pageNum)+1):
-                print '正在写入第%d页'%i
-                page=self.getPage(i)
-                self.getContent(page)
-        except IOError,e:
-            print '写入异常，原因：'+e.message
-        finally:
-            print '写入完成'
-            
-    
-print '请输入帖子代号：'
-baseUrl='http://tieba.baidu.com/p/'+str(raw_input('http://tieba.baidu.com/p/'))
-print '是否只看楼主，是=1，否=0:'
-see_lz=int(raw_input())
-spider=bdtb(baseUrl,see_lz)
-spider.start()
+            i0=item[0].strip().decode('gbk')#名称
+            i1=float(item[1].strip())#学分
+            i2=item[2].strip().decode('gbk')#必修|选修
+            i3=0.0
+            i33=item[3].strip().decode('gbk')#成绩
+            self.fw.write(i0.encode('utf-8')+' '+str(i1)+' '+i2.encode('utf-8')+' '+i33.encode('utf-8')+'\r\n')
+            if i33=='优秀'.decode('utf-8'):
+                i3=95.0
+            elif i33=='良好'.decode('utf-8'):
+                i3=85.0
+            elif i33=='及格'.decode('utf-8'):
+                i3=75.0
+            elif i33=='不及格'.decode('utf-8'):
+                i3=30.0
+            else:
+                i3=float(i33.encode('utf-8'))
+            if i2=='必修'.decode('utf-8'):
+                if i1==0:
+                    i1=0.25
+                totalRequireScore+=i3*i1
+                totalRequiredCredit+=i1
+            else:
+                totalElectiveScore+=i3*i1
+                totalElectiveCredit+=i1
+        self.fw.write('\r\n')
+        if self.type==1:
+            self.fw.write('所有必修总均分为：%.2f'%(totalRequireScore/totalRequiredCredit))
+        else:
+            self.fw.write('总均分为：%.2f'%((totalElectiveScore+totalRequireScore)/(totalElectiveCredit+totalRequiredCredit)))
+        self.fw.close()
         
+    def getTotalItems(self):
+        response=self.opener.open(self.evaUrl)
+        #self.fw.write(response.read())
+        pattern=re.compile('rows=(.*?)&', re.S)
+        items=re.findall(pattern, response.read().decode('gbk').encode('utf-8'))
+        return items[0]
+    
+    def evalute(self):
+        response=self.opener.open(self.evaUrl)
+        itemNum=0
+        totalItems=self.getTotalItems()
+        evaluteUrl='http://202.115.47.141/jxpgXsAction.do?totalrows='+totalItems+'&page='
+        evaluteDetailUrl='http://202.115.47.141/jxpgXsAction.do'
+        
+        pattern=re.compile('class="odd.*?/td>.*?/td>.*?/td>'+
+                           '.*?center">(.*?)</td'+
+                           '.*?name="(.*?)#@(.*?)#@(.*?)#@(.*?)#@(.*?)#@(.*?)" .*?', re.S)
+        items=re.findall(pattern, response.read())
+        for item in items:
+                  postdata=urllib.urlencode({'wjbm':item[1],
+                            'bpr':item[2],
+                            'pgnr':item[6],
+                            'oper':'wjResultShow',
+                            'wjmc':item[4],
+                            'bprm':item[3],
+                            'pgnrm':item[5],
+                            'pageSize':20,
+                            'page':itemNum/20+1,
+                            'currentPage':itemNum/20+1
+                            })
+                  request=urllib2.Request(evaluteUrl+str(itemNum/20+1)+'&pageSize=20',postdata)
+                  res=self.opener.open(request)
+                  self.fw.write(res.read())
+                  #print item[0],item[1],item[2],item[3],item[4],item[5],item[6]
+                  itemNum+=1
+        
+    def start(self):
+        request=urllib2.Request(self.loginUrl,self.postdata)
+        response=self.opener.open(request)
+        if self.type==1|self.type==2:
+            self.getScore()
+        else:
+            self.evalute()
+        #self.fw.write(response.read())
+         
+ 
+ 
+#zjh=raw_input('请输入学号：')
+#mm=raw_input('请输入密码：')
+#type=int(raw_input('计算绩点(仅必修)输入1,计算绩点(所有)输入2,一键评教输入3：'))
+zjh='2013141222065'
+mm='999978'
+type=3
+me=jwc(zjh,mm,type)
+me.start()
