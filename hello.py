@@ -113,7 +113,7 @@ class jwc(object):
 #mm=raw_input('请输入密码：')
 #type=int(raw_input('计算绩点(仅必修)输入1,计算绩点(所有)输入2,一键评教输入3：'))
 zjh='2013141222065'
-mm='999978'
+mm='*******'
 type=3
 me=jwc(zjh,mm,type)
 me.start()
